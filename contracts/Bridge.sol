@@ -20,7 +20,7 @@ contract Bridge is Pausable, AccessControl, SafeMath {
     // Limit relayers number because proposal can fit only so much votes
     uint256 constant public MAX_RELAYERS = 200;
 
-    uint8   public _domainID;
+    uint64   public _domainID;
     uint8   public _relayerThreshold;
     uint128 public _fee;
     uint40  public _expiry;
@@ -35,7 +35,7 @@ contract Bridge is Pausable, AccessControl, SafeMath {
     }
 
     // destinationDomainID => number of deposits
-    mapping(uint8 => uint64) public _depositCounts;
+    mapping(uint64 => uint64) public _depositCounts;
     // resourceID => handler address
     mapping(bytes32 => address) public _resourceIDToHandlerAddress;
     // forwarder address => is Valid
@@ -47,7 +47,7 @@ contract Bridge is Pausable, AccessControl, SafeMath {
     event RelayerAdded(address relayer);
     event RelayerRemoved(address relayer);
     event Deposit(
-        uint8   destinationDomainID,
+        uint64   destinationDomainID,
         bytes32 resourceID,
         uint64  depositNonce,
         address indexed user,
@@ -55,13 +55,13 @@ contract Bridge is Pausable, AccessControl, SafeMath {
         bytes handlerResponse
     );
     event ProposalEvent(
-        uint8          originDomainID,
+        uint64          originDomainID,
         uint64         depositNonce,
         ProposalStatus status,
         bytes32 dataHash
     );
     event ProposalVote(
-        uint8   originDomainID,
+        uint64   originDomainID,
         uint64  depositNonce,
         ProposalStatus status,
         bytes32 dataHash
@@ -126,7 +126,7 @@ contract Bridge is Pausable, AccessControl, SafeMath {
         @param initialRelayers Addresses that should be initially granted the relayer role.
         @param initialRelayerThreshold Number of votes needed for a deposit proposal to be considered passed.
      */
-    constructor (uint8 domainID, address[] memory initialRelayers, uint256 initialRelayerThreshold, uint256 fee, uint256 expiry) public {
+    constructor (uint64 domainID, address[] memory initialRelayers, uint256 initialRelayerThreshold, uint256 fee, uint256 expiry) public {
         _domainID = domainID;
         _relayerThreshold = initialRelayerThreshold.toUint8();
         _fee = fee.toUint128();
@@ -276,7 +276,7 @@ contract Bridge is Pausable, AccessControl, SafeMath {
         @param domainID Domain ID for increasing nonce.
         @param nonce The nonce value to be set.
      */
-    function adminSetDepositNonce(uint8 domainID, uint64 nonce) external onlyAdmin {
+    function adminSetDepositNonce(uint64 domainID, uint64 nonce) external onlyAdmin {
         require(nonce > _depositCounts[domainID], "Does not allow decrements of the nonce");
         _depositCounts[domainID] = nonce;
     }
@@ -302,7 +302,7 @@ contract Bridge is Pausable, AccessControl, SafeMath {
         - _noVotes Number of votes against proposal.
         - _status Current status of proposal.
      */
-    function getProposal(uint8 originDomainID, uint64 depositNonce, bytes32 dataHash) external view returns (Proposal memory) {
+    function getProposal(uint64 originDomainID, uint64 depositNonce, bytes32 dataHash) external view returns (Proposal memory) {
         uint72 nonceAndID = (uint72(depositNonce) << 8) | uint72(originDomainID);
         return _proposals[nonceAndID][dataHash];
     }
@@ -349,7 +349,7 @@ contract Bridge is Pausable, AccessControl, SafeMath {
         - ERC721Handler: responds with the deposited token metadata acquired by calling a tokenURI method in the token contract.
         - GenericHandler: responds with the raw bytes returned from the call to the target contract.
      */
-    function deposit(uint8 destinationDomainID, bytes32 resourceID, bytes calldata data) external payable whenNotPaused {
+    function deposit(uint64 destinationDomainID, bytes32 resourceID, bytes calldata data) external payable whenNotPaused {
         require(msg.value == _fee, "Incorrect fee supplied");
 
         address handler = _resourceIDToHandlerAddress[resourceID];
@@ -375,7 +375,7 @@ contract Bridge is Pausable, AccessControl, SafeMath {
         @notice Emits {ProposalEvent} event with status indicating the proposal status.
         @notice Emits {ProposalVote} event.
      */
-    function voteProposal(uint8 domainID, uint64 depositNonce, bytes32 resourceID, bytes calldata data) external onlyRelayers whenNotPaused {
+    function voteProposal(uint64 domainID, uint64 depositNonce, bytes32 resourceID, bytes calldata data) external onlyRelayers whenNotPaused {
         address handler = _resourceIDToHandlerAddress[resourceID];
         uint72 nonceAndID = (uint72(depositNonce) << 8) | uint72(domainID);
         bytes32 dataHash = keccak256(abi.encodePacked(handler, data));
@@ -438,7 +438,7 @@ contract Bridge is Pausable, AccessControl, SafeMath {
         @notice Proposal must be past expiry threshold.
         @notice Emits {ProposalEvent} event with status {Cancelled}.
      */
-    function cancelProposal(uint8 domainID, uint64 depositNonce, bytes32 dataHash) public onlyAdminOrRelayer {
+    function cancelProposal(uint64 domainID, uint64 depositNonce, bytes32 dataHash) public onlyAdminOrRelayer {
         uint72 nonceAndID = (uint72(depositNonce) << 8) | uint72(domainID);
         Proposal memory proposal = _proposals[nonceAndID][dataHash];
         ProposalStatus currentStatus = proposal._status;
@@ -466,7 +466,7 @@ contract Bridge is Pausable, AccessControl, SafeMath {
         @notice Emits {ProposalEvent} event with status {Executed}.
         @notice Emits {FailedExecution} event with the failed reason.
      */
-    function executeProposal(uint8 domainID, uint64 depositNonce, bytes calldata data, bytes32 resourceID, bool revertOnFail) public onlyRelayers whenNotPaused {
+    function executeProposal(uint64 domainID, uint64 depositNonce, bytes calldata data, bytes32 resourceID, bool revertOnFail) public onlyRelayers whenNotPaused {
         address handler = _resourceIDToHandlerAddress[resourceID];
         uint72 nonceAndID = (uint72(depositNonce) << 8) | uint72(domainID);
         bytes32 dataHash = keccak256(abi.encodePacked(handler, data));
